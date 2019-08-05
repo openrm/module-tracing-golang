@@ -28,7 +28,7 @@ const (
     messageRequestHandled = "tracing: request handled"
 )
 
-func Handler(logger *log.Logger) mux.MiddlewareFunc {
+func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
     return func(handler http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             for _, re := range excludePatterns {
@@ -38,7 +38,7 @@ func Handler(logger *log.Logger) mux.MiddlewareFunc {
                 }
             }
 
-            entry := log.NewEntry(logger)
+            entry := logger
             start := time.Now()
 
             entry = entry.WithField("headers", r.Header)
