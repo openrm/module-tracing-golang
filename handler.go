@@ -11,7 +11,7 @@ const (
 )
 
 type ContextKey struct {
-    namespace string
+    Namespace string
 }
 
 var SpanContextKey = ContextKey{"span"}
