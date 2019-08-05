@@ -18,7 +18,7 @@ var (
 func SetExcludePatterns(exprs ...string) {
     for _, expr := range exprs {
         re, err := regexp.Compile(expr)
-        if err = nil {
+        if err == nil {
             excludePatterns = append(excludePatterns, re)
         }
     }
