@@ -1,11 +1,13 @@
 package log
 
 import (
+    "fmt"
     "time"
     "context"
     "regexp"
     "net/http"
     "mime/multipart"
+    "github.com/pkg/errors"
     log "github.com/sirupsen/logrus"
     "github.com/gorilla/mux"
     "github.com/openrm/module-tracing-golang"
@@ -29,6 +31,11 @@ const (
     messageRequestHandled = "tracing: request handled"
 )
 
+type stackTracer interface {
+    error
+    StackTrace() errors.StackTrace
+}
+
 func parseMultipartForm(form *multipart.Form) map[string]interface{} {
     parsedForm := make(map[string]interface{}, len(form.File))
 
@@ -36,7 +43,7 @@ func parseMultipartForm(form *multipart.Form) map[string]interface{} {
     for k, vs := range form.File {
         files := make([]map[string]interface{}, len(vs))
         for i, f := range vs {
-            files[i] = map[string]interface{} {
+            files[i] = map[string]interface{}{
                 "filename": f.Filename,
                 "headers": f.Header,
                 "size": f.Size,
@@ -93,8 +100,29 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
 
             ctx := context.WithValue(r.Context(), LoggerContextKey, entry)
 
-            l := newResponseLogger(w)
-            handler.ServeHTTP(l, r.WithContext(ctx))
+            l := tracing.NewResponseLogger(w)
+            r = r.WithContext(ctx)
+
+            handler.ServeHTTP(l, r)
+
+            if err := l.Error; err != nil {
+                errMap := map[string]interface{}{
+                    "message": err.Error(),
+                }
+
+                if err, ok := err.(stackTracer); ok {
+                    st := err.StackTrace()
+                    stackTrace := make([]string, len(st))
+
+                    for i, frame := range st {
+                        stackTrace[i] = fmt.Sprintf("%+v", frame)
+                    }
+
+                    errMap["stacktrace"] = stackTrace
+                }
+
+                entry = entry.WithField("err", errMap)
+            }
 
             if r.Form != nil {
                 entry = entry.WithField("form", r.Form)
@@ -106,7 +134,7 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
 
             entry = entry.WithFields(log.Fields{
                 "responseTime": float64(time.Since(start).Nanoseconds()) / 1e6, // ms
-                "status": l.status,
+                "status": l.Status,
                 "responseHeaders": l.Header(),
             })
 
