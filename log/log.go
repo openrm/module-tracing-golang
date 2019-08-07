@@ -13,9 +13,14 @@ import (
     "github.com/openrm/module-tracing-golang"
 )
 
+const Mask = "[Filtered]"
+
 var (
     LoggerContextKey = tracing.ContextKey{"logger"}
     excludePatterns = []*regexp.Regexp{}
+    filterHeaderPatterns = []*regexp.Regexp{
+        regexp.MustCompile(`[Aa]uthorization`),
+    }
 )
 
 func SetExcludePatterns(exprs ...string) {
@@ -23,6 +28,15 @@ func SetExcludePatterns(exprs ...string) {
         re, err := regexp.Compile(expr)
         if err == nil {
             excludePatterns = append(excludePatterns, re)
+        }
+    }
+}
+
+func SetFilterHeaderPatterns(exprs ...string) {
+    for _, expr := range exprs {
+        re, err := regexp.Compile(expr)
+        if err == nil {
+            filterHeaderPatterns = append(excludePatterns, re)
         }
     }
 }
@@ -63,6 +77,22 @@ func parseCookies(cookies []*http.Cookie) []string {
     return serialized
 }
 
+func filterHeader(headers http.Header) map[string]string {
+    filtered := make(map[string]string)
+    for k, _ := range headers {
+        var value string = headers.Get(k)
+
+        for _, re := range filterHeaderPatterns {
+            if re.MatchString(k) {
+                value = Mask
+            }
+        }
+
+        filtered[k] = value
+    }
+    return filtered
+}
+
 func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
     return func(handler http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +106,7 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
             entry := logger
             start := time.Now()
 
-            entry = entry.WithField("headers", r.Header)
+            entry = entry.WithField("headers", filterHeader(r.Header))
 
             entry = entry.WithFields(log.Fields{
                 "method": r.Method,
