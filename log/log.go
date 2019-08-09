@@ -166,6 +166,7 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
                 "responseTime": float64(time.Since(start).Nanoseconds()) / 1e6, // ms
                 "status": l.Status,
                 "responseHeaders": l.Header(),
+                "responseContentLength": l.Size,
             })
 
             entry.Info(messageRequestHandled)
