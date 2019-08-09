@@ -148,7 +148,7 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
                         stackTrace[i] = fmt.Sprintf("%+v", frame)
                     }
 
-                    errMap["stacktrace"] = stackTrace
+                    errMap["stack"] = stackTrace
                 }
 
                 entry = entry.WithField("err", errMap)
