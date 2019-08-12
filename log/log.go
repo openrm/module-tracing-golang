@@ -20,6 +20,8 @@ var (
     excludePatterns = []*regexp.Regexp{}
     filterHeaderPatterns = []*regexp.Regexp{
         regexp.MustCompile(`[Aa]uthorization`),
+        regexp.MustCompile(`[Cc]ookie`),
+        regexp.MustCompile(`[Ss]et-[Cc]ookie`),
     }
 )
 
@@ -165,7 +167,7 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
             entry = entry.WithFields(log.Fields{
                 "responseTime": float64(time.Since(start).Nanoseconds()) / 1e6, // ms
                 "status": l.Status,
-                "responseHeaders": l.Header(),
+                "responseHeaders": filterHeader(l.Header()),
                 "responseContentLength": l.Size,
             })
 
