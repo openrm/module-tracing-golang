@@ -4,44 +4,16 @@ import (
     "fmt"
     "time"
     "context"
-    "regexp"
     "net/http"
-    "mime/multipart"
     "github.com/pkg/errors"
     log "github.com/sirupsen/logrus"
     "github.com/gorilla/mux"
     "github.com/openrm/module-tracing-golang"
 )
 
-const Mask = "[Filtered]"
-
 var (
     LoggerContextKey = tracing.ContextKey{"logger"}
-    excludePatterns = []*regexp.Regexp{}
-    filterHeaderPatterns = []*regexp.Regexp{
-        regexp.MustCompile(`[Aa]uthorization`),
-        regexp.MustCompile(`[Cc]ookie`),
-        regexp.MustCompile(`[Ss]et-[Cc]ookie`),
-    }
 )
-
-func SetExcludePatterns(exprs ...string) {
-    for _, expr := range exprs {
-        re, err := regexp.Compile(expr)
-        if err == nil {
-            excludePatterns = append(excludePatterns, re)
-        }
-    }
-}
-
-func SetFilterHeaderPatterns(exprs ...string) {
-    for _, expr := range exprs {
-        re, err := regexp.Compile(expr)
-        if err == nil {
-            filterHeaderPatterns = append(excludePatterns, re)
-        }
-    }
-}
 
 const (
     messageRequestHandled = "tracing: request handled"
@@ -50,49 +22,6 @@ const (
 type stackTracer interface {
     error
     StackTrace() errors.StackTrace
-}
-
-func parseMultipartForm(form *multipart.Form) map[string]interface{} {
-    parsedForm := make(map[string]interface{}, len(form.File))
-
-    // the content of form.Value is already set in http.Request.Form
-    for k, vs := range form.File {
-        files := make([]map[string]interface{}, len(vs))
-        for i, f := range vs {
-            files[i] = map[string]interface{}{
-                "filename": f.Filename,
-                "headers": f.Header,
-                "size": f.Size,
-            }
-        }
-        parsedForm[k] = files
-    }
-
-    return parsedForm
-}
-
-func parseCookies(cookies []*http.Cookie) []string {
-    serialized := make([]string, len(cookies))
-    for i, cookie := range cookies {
-        serialized[i] = cookie.String()
-    }
-    return serialized
-}
-
-func filterHeader(headers http.Header) map[string]string {
-    filtered := make(map[string]string)
-    for k, _ := range headers {
-        var value string = headers.Get(k)
-
-        for _, re := range filterHeaderPatterns {
-            if re.MatchString(k) {
-                value = Mask
-            }
-        }
-
-        filtered[k] = value
-    }
-    return filtered
 }
 
 func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
@@ -108,12 +37,11 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
             entry := logger
             start := time.Now()
 
-            entry = entry.WithField("headers", filterHeader(r.Header))
-
             entry = entry.WithFields(log.Fields{
                 "method": r.Method,
                 "protocol": r.Proto,
                 "url": r.RequestURI,
+                "headers": filterHeader(r.Header),
                 "remoteAddress": r.RemoteAddr,
                 "hostname": r.Host,
                 "referer": r.Referer(),
