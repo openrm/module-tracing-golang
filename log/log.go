@@ -17,11 +17,52 @@ var (
 
 const (
     messageRequestHandled = "tracing: request handled"
+    errorKey = "err"
 )
+
 
 type stackTracer interface {
     error
     StackTrace() errors.StackTrace
+    Cause() error
+}
+
+func traceError(err error, seen []string) []string {
+    if err, ok := err.(stackTracer); ok {
+        st := err.StackTrace()
+
+        var stackTrace []string
+        unique := len(seen) == 0
+
+        for i := 0; i < len(st); i++ {
+            frame := st[len(st) - 1 - i]
+            str := fmt.Sprintf("%+v", frame)
+            if unique || len(seen) > i && seen[len(seen) - 1 - i] != str {
+                unique = true
+                stackTrace = append([]string{str}, stackTrace...)
+            }
+        }
+
+        if err.Cause() == nil {
+            return stackTrace
+        }
+
+        return append(traceError(err.Cause(), append(stackTrace, seen...)), stackTrace...)
+    }
+
+    return []string{}
+}
+
+func parseError(err error) map[string]interface{} {
+    errMap := map[string]interface{}{
+        "message": err.Error(),
+    }
+
+    if err, ok := err.(stackTracer); ok {
+        errMap["stack"] = traceError(err, []string{})
+    }
+
+    return errMap
 }
 
 func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
@@ -34,10 +75,9 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
                 }
             }
 
-            entry := logger
             start := time.Now()
 
-            entry = entry.WithFields(log.Fields{
+            entry := logger.WithFields(log.Fields{
                 "method": r.Method,
                 "protocol": r.Proto,
                 "url": r.RequestURI,
@@ -59,30 +99,17 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
                 })
             }
 
-            ctx := context.WithValue(r.Context(), LoggerContextKey, entry)
+            ctx := r.Context()
+            ctx = context.WithValue(ctx, LoggerContextKey, NewLogger(entry))
 
-            l := tracing.NewResponseLogger(w)
             r = r.WithContext(ctx)
+            l := tracing.NewResponseLogger(w)
 
             handler.ServeHTTP(l, r)
 
             if err := l.Error; err != nil {
-                errMap := map[string]interface{}{
-                    "message": err.Error(),
-                }
-
-                if err, ok := err.(stackTracer); ok {
-                    st := err.StackTrace()
-                    stackTrace := make([]string, len(st))
-
-                    for i, frame := range st {
-                        stackTrace[i] = fmt.Sprintf("%+v", frame)
-                    }
-
-                    errMap["stack"] = stackTrace
-                }
-
-                entry = entry.WithField("err", errMap)
+                errMap := parseError(err)
+                entry = entry.WithField(errorKey, errMap)
             }
 
             if r.Form != nil {
