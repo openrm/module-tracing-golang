@@ -5,7 +5,6 @@ import (
     "time"
     "context"
     "net/http"
-    "github.com/pkg/errors"
     log "github.com/sirupsen/logrus"
     "github.com/gorilla/mux"
     "github.com/openrm/module-tracing-golang"
@@ -21,45 +20,21 @@ const (
 )
 
 
-type stackTracer interface {
-    error
-    StackTrace() errors.StackTrace
-    Cause() error
-}
-
-func traceError(err error, seen []string) []string {
-    if err, ok := err.(stackTracer); ok {
-        st := err.StackTrace()
-
-        var stackTrace []string
-        unique := len(seen) == 0
-
-        for i := 0; i < len(st); i++ {
-            frame := st[len(st) - 1 - i]
-            str := fmt.Sprintf("%+v", frame)
-            if unique || len(seen) > i && seen[len(seen) - 1 - i] != str {
-                unique = true
-                stackTrace = append([]string{str}, stackTrace...)
-            }
-        }
-
-        if err.Cause() == nil {
-            return stackTrace
-        }
-
-        return append(traceError(err.Cause(), append(stackTrace, seen...)), stackTrace...)
-    }
-
-    return []string{}
-}
-
 func parseError(err error) map[string]interface{} {
     errMap := map[string]interface{}{
         "message": err.Error(),
     }
 
-    if err, ok := err.(stackTracer); ok {
-        errMap["stack"] = traceError(err, []string{})
+    st := tracing.WithStackTrace(err).StackTrace()
+
+    if len(st) > 0 {
+        stackTrace := make([]string, len(st))
+
+        for i, frame := range st {
+            stackTrace[i] = fmt.Sprintf("%+v", frame)
+        }
+
+        errMap["stack"] = stackTrace
     }
 
     return errMap
