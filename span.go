@@ -1,6 +1,7 @@
 package tracing
 
 import (
+    "fmt"
     "strings"
     "github.com/google/uuid"
 )
@@ -9,6 +10,10 @@ type Span struct {
     TraceId string
     SpanId string
     Parent *Span
+}
+
+func (s *Span) Serialize() string {
+    return fmt.Sprintf("%s-%s", s.TraceId, s.SpanId)
 }
 
 func genSpanId() string {
