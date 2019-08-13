@@ -29,10 +29,7 @@ func (ti *tracingIntegration) processor(event *sentry.Event, hint *sentry.EventH
 
     if sp := ti.extractSpan(event.Request); sp != nil {
         span := *sp
-        event.Contexts[integrationContextNamespace] = map[string]string{
-            "span_id": span.SpanId,
-            "trace_id": span.TraceId,
-        }
+        event.Contexts[integrationContextNamespace] = span.JSON(false)
     }
 
     return event

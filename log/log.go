@@ -93,7 +93,7 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
             if sp, ok := r.Context().Value(tracing.SpanContextKey).(*tracing.Span); ok {
                 span := *sp
                 entry = entry.WithFields(log.Fields{
-                    "span": span.JSON(),
+                    "span": span.JSON(true),
                     "traceId": span.TraceId,
                     "spanId": span.SpanId,
                 })

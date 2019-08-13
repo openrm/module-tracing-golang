@@ -16,14 +16,20 @@ func (s *Span) Serialize() string {
     return fmt.Sprintf("%s-%s", s.TraceId, s.SpanId)
 }
 
-func (s *Span) JSON() map[string]interface{} {
-    data := map[string]interface{}{
-        "traceId": s.TraceId,
-        "spanId": s.SpanId,
+func (s *Span) JSON(camelcase bool) map[string]interface{} {
+    traceKey, spanKey := "trace_id", "span_id"
+
+    if camelcase {
+        traceKey, spanKey = "traceId", "spanId"
     }
 
+    data := map[string]interface{}{}
+
+    data[traceKey] = s.TraceId
+    data[spanKey] = s.SpanId
+
     if s.Parent != nil {
-        data["parent"] = s.Parent.JSON()
+        data["parent"] = s.Parent.JSON(camelcase)
     }
 
     return data
