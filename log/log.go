@@ -9,9 +9,13 @@ import (
 )
 
 type contextKey struct {}
+type extraKey struct {
+    name string
+}
 
 var (
     LoggerContextKey = contextKey{}
+    EventIdKey = extraKey{"eventId"}
 )
 
 const (
@@ -68,8 +72,14 @@ func Handler(extractSpan func(context.Context) *opentracing.Span) func(http.Hand
 
             handler.ServeHTTP(l, r)
 
-            if err := l.Error; err != nil {
-                entry = entry.WithField(errorKey, parseError(err))
+            if l.err != nil {
+                entry = entry.WithField(errorKey, parseError(l.err))
+            }
+
+            if eventId, ok := l.getExtra(EventIdKey).(string); ok {
+                entry = entry.WithField("sentry", map[string]string{
+                    "eventId": eventId,
+                })
             }
 
             if r.Form != nil {
@@ -82,9 +92,9 @@ func Handler(extractSpan func(context.Context) *opentracing.Span) func(http.Hand
 
             entry = entry.WithFields(log.Fields{
                 "responseTime": float64(time.Since(start).Nanoseconds()) / 1e6, // ms
-                "status": l.Status,
+                "status": l.status,
                 "responseHeaders": filterHeader(l.Header()),
-                "responseContentLength": l.Size,
+                "responseContentLength": l.size,
             })
 
             entry.Info(messageRequestHandled)

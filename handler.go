@@ -7,19 +7,23 @@ import (
     "github.com/openrm/module-tracing-golang/log"
 )
 
-var ErrorContextKey = ContextKey{"error"}
-
 type ErrorHandlerFunc func(http.ResponseWriter, *http.Request) error
 
 // implements http.Handler
 func (f ErrorHandlerFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     if err := f(w, r); err != nil {
+        var eventId *sentry.EventID
+
         if hub := sentry.GetHubFromContext(r.Context()); hub != nil {
-            hub.CaptureException(error(errors.WithStackTrace(err)))
+            eventId = hub.CaptureException(error(errors.WithStackTrace(err)))
         }
 
         if w, ok := w.(*log.ResponseLogger); ok {
             w.WriteError(err)
+
+            if eventId != nil {
+                w.WriteExtra(log.EventIdKey, string(*eventId))
+            }
         }
 
         http.Error(w, err.Error(), http.StatusInternalServerError)
