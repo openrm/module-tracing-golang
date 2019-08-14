@@ -3,11 +3,12 @@ package tracing
 import (
     "context"
     "net/http"
+    "github.com/openrm/module-tracing-golang/opentracing"
 )
 
 type tracingTransport struct {
     *http.Transport
-    span *Span
+    span *opentracing.Span
 }
 
 func (tp *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -21,7 +22,7 @@ func NewTransport(ctx context.Context) http.RoundTripper {
     defaultTransport := http.DefaultTransport.(*http.Transport)
     tp := tracingTransport{ Transport: defaultTransport }
 
-    if sp, ok := ctx.Value(SpanContextKey).(*Span); ok {
+    if sp, ok := ctx.Value(SpanContextKey).(*opentracing.Span); ok {
         tp.span = sp
     }
 

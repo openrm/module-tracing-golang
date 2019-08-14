@@ -2,7 +2,14 @@ package log
 
 import (
     "regexp"
+    log "github.com/sirupsen/logrus"
 )
+
+var logger log.FieldLogger = log.New()
+
+func SetLogger(l log.FieldLogger) {
+    logger = l
+}
 
 const Mask = "[Filtered]"
 

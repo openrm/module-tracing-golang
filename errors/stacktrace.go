@@ -1,6 +1,7 @@
-package tracing
+package errors
 
 import (
+    "runtime"
     "github.com/pkg/errors"
 )
 
@@ -39,6 +40,12 @@ func extractStackTrace(err error, seen ...uintptr) []uintptr {
         }
 
         return stackTrace
+    }
+
+    if len(seen) == 0 {
+        pc := make([]uintptr, 128)
+        n := runtime.Callers(1, pc)
+        return pc[:n]
     }
 
     return []uintptr{}

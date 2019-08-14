@@ -15,24 +15,24 @@ type reporter interface {
     Report(err error)
 }
 
-type logger struct {
+type contextLogger struct {
     *log.Entry
     hub *sentry.Hub
 }
 
 func NewLogger(entry *log.Entry) Logger {
-    return &logger{ Entry: entry }
+    return &contextLogger{ Entry: entry }
 }
 
-func (l *logger) withError(err error) logger {
-    return logger{ l.Entry.WithField(errorKey, parseError(err)), l.hub }
+func (l *contextLogger) withError(err error) contextLogger {
+    return contextLogger{ l.Entry.WithField(errorKey, parseError(err)), l.hub }
 }
 
-func (l *logger) WithError(err error) *log.Entry {
+func (l *contextLogger) WithError(err error) *log.Entry {
     return l.withError(err).Entry
 }
 
-func (l *logger) Report(err error) {
+func (l *contextLogger) Report(err error) {
     id := l.hub.CaptureException(err)
     if id != nil {
         l.WithError(err).Errorf("tracing: error reported: %s", *id)
@@ -40,7 +40,7 @@ func (l *logger) Report(err error) {
 }
 
 func MustGetLogger(ctx context.Context) Logger {
-    logger, ok := ctx.Value(LoggerContextKey).(*logger)
+    logger, ok := ctx.Value(LoggerContextKey).(*contextLogger)
 
     if !ok {
         panic("tracing: could not get logger from context")
@@ -52,7 +52,7 @@ func MustGetLogger(ctx context.Context) Logger {
 }
 
 func GetLogger(ctx context.Context) Logger {
-    logger, ok := ctx.Value(LoggerContextKey).(*logger)
+    logger, ok := ctx.Value(LoggerContextKey).(*contextLogger)
 
     if ok {
         logger.hub = sentry.GetHubFromContext(ctx)

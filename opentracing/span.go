@@ -1,4 +1,4 @@
-package tracing
+package opentracing
 
 import (
     "fmt"
@@ -41,6 +41,6 @@ func genSpanId() string {
     return hex[:16]
 }
 
-func newSpanFromParent(p Span) Span {
+func NewFromParent(p Span) Span {
     return Span{ Parent: &p, TraceId: p.TraceId, SpanId: genSpanId() }
 }

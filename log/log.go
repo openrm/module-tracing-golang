@@ -1,46 +1,26 @@
 package log
 
 import (
-    "fmt"
     "time"
     "context"
     "net/http"
     log "github.com/sirupsen/logrus"
-    "github.com/gorilla/mux"
-    "github.com/openrm/module-tracing-golang"
+    "github.com/openrm/module-tracing-golang/opentracing"
 )
 
+type contextKey struct {}
+
 var (
-    LoggerContextKey = tracing.ContextKey{"logger"}
+    LoggerContextKey = contextKey{}
 )
 
 const (
     messageRequestHandled = "tracing: request handled"
+    messageCaughtPanic = "tracing: caught panic"
     errorKey = "err"
 )
 
-
-func parseError(err error) map[string]interface{} {
-    errMap := map[string]interface{}{
-        "message": err.Error(),
-    }
-
-    st := tracing.WithStackTrace(err).StackTrace()
-
-    if len(st) > 0 {
-        stackTrace := make([]string, len(st))
-
-        for i, frame := range st {
-            stackTrace[i] = fmt.Sprintf("%+v", frame)
-        }
-
-        errMap["stack"] = stackTrace
-    }
-
-    return errMap
-}
-
-func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
+func Handler(extractSpan func(context.Context) *opentracing.Span) func(http.Handler) http.Handler {
     return func(handler http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             for _, re := range excludePatterns {
@@ -65,7 +45,7 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
                 "contentLength": r.ContentLength,
             })
 
-            if sp, ok := r.Context().Value(tracing.SpanContextKey).(*tracing.Span); ok {
+            if sp := extractSpan(r.Context()); sp != nil {
                 span := *sp
                 entry = entry.WithFields(log.Fields{
                     "span": span.JSON(true),
@@ -78,13 +58,18 @@ func Handler(logger log.FieldLogger) mux.MiddlewareFunc {
             ctx = context.WithValue(ctx, LoggerContextKey, NewLogger(entry))
 
             r = r.WithContext(ctx)
-            l := tracing.NewResponseLogger(w)
+            l := NewResponseLogger(w)
+
+            defer func() {
+                if err := recover(); err != nil {
+                    entry.WithField(errorKey, parsePanic(err)).Error(messageCaughtPanic)
+                }
+            }()
 
             handler.ServeHTTP(l, r)
 
             if err := l.Error; err != nil {
-                errMap := parseError(err)
-                entry = entry.WithField(errorKey, errMap)
+                entry = entry.WithField(errorKey, parseError(err))
             }
 
             if r.Form != nil {

@@ -3,6 +3,7 @@ package tracing
 import (
     "strings"
     "github.com/getsentry/sentry-go"
+    "github.com/openrm/module-tracing-golang/opentracing"
 )
 
 const (
@@ -35,7 +36,7 @@ func (ti *tracingIntegration) processor(event *sentry.Event, hint *sentry.EventH
     return event
 }
 
-func (ti *tracingIntegration) extractSpan(r sentry.Request) *Span {
+func (ti *tracingIntegration) extractSpan(r sentry.Request) *opentracing.Span {
     var traceParent string
 
     for k, v := range r.Headers {
@@ -45,7 +46,7 @@ func (ti *tracingIntegration) extractSpan(r sentry.Request) *Span {
     }
 
     if traceParent != "" {
-        if sp := fromTraceParent(traceParent); sp != nil {
+        if sp := opentracing.NewFromTraceParent(traceParent); sp != nil {
             return sp
         }
     }
