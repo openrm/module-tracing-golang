@@ -1,6 +1,7 @@
 package errors
 
 import (
+    "strings"
     "runtime"
     "github.com/pkg/errors"
 )
@@ -19,43 +20,17 @@ type causer interface {
     Cause() error
 }
 
-func newStack() []uintptr {
+func newStack() errors.StackTrace {
     pc := make([]uintptr, 128)
     n := runtime.Callers(1, pc)
-    return pc[:n]
+    return fromPC(pc[:n])
 }
 
-// recursively recover and track the stack frames attached in the error
-func extractStackTrace(err error, seen ...uintptr) []uintptr {
-    if err, ok := err.(stackTracer); ok {
-        st := err.StackTrace()
-
-        var stackTrace []uintptr
-        unique := len(seen) == 0
-
-        for i := 0; i < len(st); i++ {
-            frame := uintptr(st[len(st) - 1 - i])
-            if unique || len(seen) > i && seen[len(seen) - 1 - i] != frame {
-                unique = true
-                stackTrace = append([]uintptr{frame}, stackTrace...)
-            }
-        }
-
-        if err, ok := err.(nestedStack); ok {
-            return append(extractStackTrace(err.Cause(), append(stackTrace, seen...)...), stackTrace...)
-        }
-
-        return stackTrace
-    }
-
-    if len(seen) == 0 {
-        return newStack()
-    }
-
-    return []uintptr{}
+func pc(f errors.Frame) uintptr {
+    return uintptr(f) - 1
 }
 
-func fromPC(pcs []uintptr) []errors.Frame {
+func fromPC(pcs []uintptr) errors.StackTrace {
     fs := make([]errors.Frame, len(pcs))
     for i, pc := range pcs {
         fs[i] = errors.Frame(pc)
@@ -63,20 +38,78 @@ func fromPC(pcs []uintptr) []errors.Frame {
     return fs
 }
 
+// recursively recover and track the stack frames attached in the error
+func extractStackTrace(err error) errors.StackTrace {
+    if err, ok := err.(stackTracer); ok {
+        stack := err.StackTrace()
+
+        if err, ok := err.(causer); ok {
+            return append(extractStackTrace(err.Cause()), stack...)
+        }
+
+        return stack
+    }
+
+    return errors.StackTrace{}
+}
+
 type flattened struct {
     error
-    stack []uintptr
+    stack errors.StackTrace
 }
 
 func (f flattened) StackTrace() errors.StackTrace {
-    return fromPC(f.stack)
+    return filterFrame(f.stack)
+}
+
+func module(name string) string {
+    if i := strings.LastIndex(name, "."); i > -1 {
+        return name[:i]
+    }
+    return ""
+}
+
+const (
+    identity = "github.com/openrm/module-tracing-golang/errors"
+    tracingLogPath = "github.com/openrm/module-tracing-golang/log"
+    sentrySdkPath = "github.com/getsentry/sentry-go"
+)
+
+func filterFrame(st errors.StackTrace) errors.StackTrace {
+    stack := make(errors.StackTrace, 0, len(st))
+    for _, frame := range st {
+        fn := runtime.FuncForPC(pc(frame))
+
+        if fn == nil {
+            continue
+        }
+
+        mod := module(fn.Name())
+
+        if mod == "runtime" {
+            continue
+        }
+
+        if strings.HasPrefix(mod, identity) || strings.HasPrefix(mod, tracingLogPath) {
+            continue
+        }
+
+        if strings.HasPrefix(mod, sentrySdkPath) {
+            continue
+        }
+
+        stack = append(stack, frame)
+    }
+    return stack
 }
 
 func WithStackTrace(err error) flattened {
-    return flattened{ err, extractStackTrace(err) }
+    if _, ok := err.(stackTracer); ok {
+        return flattened{ err, extractStackTrace(err) }
+    }
+    return flattened{ err, newStack() }
 }
 
 func NewStackTrace() errors.StackTrace {
-    stack := newStack()
-    return fromPC(stack)
+    return filterFrame(newStack())
 }
