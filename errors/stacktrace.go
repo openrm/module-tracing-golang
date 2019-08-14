@@ -19,6 +19,12 @@ type causer interface {
     Cause() error
 }
 
+func newStack() []uintptr {
+    pc := make([]uintptr, 128)
+    n := runtime.Callers(1, pc)
+    return pc[:n]
+}
+
 // recursively recover and track the stack frames attached in the error
 func extractStackTrace(err error, seen ...uintptr) []uintptr {
     if err, ok := err.(stackTracer); ok {
@@ -43,12 +49,18 @@ func extractStackTrace(err error, seen ...uintptr) []uintptr {
     }
 
     if len(seen) == 0 {
-        pc := make([]uintptr, 128)
-        n := runtime.Callers(1, pc)
-        return pc[:n]
+        return newStack()
     }
 
     return []uintptr{}
+}
+
+func fromPC(pcs []uintptr) []errors.Frame {
+    fs := make([]errors.Frame, len(pcs))
+    for i, pc := range pcs {
+        fs[i] = errors.Frame(pc)
+    }
+    return fs
 }
 
 type flattened struct {
@@ -57,13 +69,14 @@ type flattened struct {
 }
 
 func (f flattened) StackTrace() errors.StackTrace {
-	fs := make([]errors.Frame, len(f.stack))
-	for i := 0; i < len(fs); i++ {
-		fs[i] = errors.Frame(f.stack[i])
-	}
-	return fs
+    return fromPC(f.stack)
 }
 
 func WithStackTrace(err error) flattened {
     return flattened{ err, extractStackTrace(err) }
+}
+
+func NewStackTrace() errors.StackTrace {
+    stack := newStack()
+    return fromPC(stack)
 }

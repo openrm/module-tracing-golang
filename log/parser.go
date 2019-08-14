@@ -4,6 +4,7 @@ import (
     "fmt"
     "mime/multipart"
     "net/http"
+    pkgerrors "github.com/pkg/errors"
     "github.com/openrm/module-tracing-golang/errors"
 )
 
@@ -34,6 +35,16 @@ func parseCookies(cookies []*http.Cookie) []string {
     return serialized
 }
 
+func sprintStack(st pkgerrors.StackTrace) []string {
+    stackTrace := make([]string, len(st))
+
+    for i, frame := range st {
+        stackTrace[i] = fmt.Sprintf("%+v", frame)
+    }
+
+    return stackTrace
+}
+
 func parseError(err error) map[string]interface{} {
     errMap := map[string]interface{}{
         "message": err.Error(),
@@ -42,13 +53,7 @@ func parseError(err error) map[string]interface{} {
     st := errors.WithStackTrace(err).StackTrace()
 
     if len(st) > 0 {
-        stackTrace := make([]string, len(st))
-
-        for i, frame := range st {
-            stackTrace[i] = fmt.Sprintf("%+v", frame)
-        }
-
-        errMap["stack"] = stackTrace
+        errMap["stack"] = sprintStack(st)
     }
 
     return errMap
@@ -58,10 +63,8 @@ func parsePanic(err interface{}) map[string]interface{} {
     if err, ok := err.(error); ok {
         return parseError(err)
     }
-    if errStr, ok := err.(string); ok {
-        return map[string]interface{}{
-            "message": errStr,
-        }
+    return map[string]interface{}{
+        "message": err,
+        "stack": sprintStack(errors.NewStackTrace()),
     }
-    return nil
 }
