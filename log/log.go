@@ -36,18 +36,7 @@ func Handler(extractSpan func(context.Context) *opentracing.Span) func(http.Hand
 
             start := time.Now()
 
-            entry := logger.WithFields(log.Fields{
-                "method": r.Method,
-                "protocol": r.Proto,
-                "url": r.RequestURI,
-                "headers": filterHeader(r.Header),
-                "remoteAddress": r.RemoteAddr,
-                "hostname": r.Host,
-                "referer": r.Referer(),
-                "userAgent": r.UserAgent(),
-                "cookies": parseCookies(r.Cookies()),
-                "contentLength": r.ContentLength,
-            })
+            var entry *log.Entry = globalLogger.WithFields(nil)
 
             if sp := extractSpan(r.Context()); sp != nil {
                 span := *sp
@@ -60,6 +49,19 @@ func Handler(extractSpan func(context.Context) *opentracing.Span) func(http.Hand
 
             ctx := r.Context()
             ctx = context.WithValue(ctx, LoggerContextKey, NewLogger(entry))
+
+            entry = entry.WithFields(log.Fields{
+                "method": r.Method,
+                "protocol": r.Proto,
+                "url": r.RequestURI,
+                "headers": filterHeader(r.Header),
+                "remoteAddress": r.RemoteAddr,
+                "hostname": r.Host,
+                "referer": r.Referer(),
+                "userAgent": r.UserAgent(),
+                "cookies": parseCookies(r.Cookies()),
+                "contentLength": r.ContentLength,
+            })
 
             r = r.WithContext(ctx)
             l := NewResponseLogger(w)

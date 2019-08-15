@@ -5,10 +5,10 @@ import (
     log "github.com/sirupsen/logrus"
 )
 
-var logger log.FieldLogger = log.New()
+var globalLogger log.FieldLogger = log.New()
 
-func SetLogger(l log.FieldLogger) {
-    logger = l
+func SetLogger(logger log.FieldLogger) {
+    globalLogger = logger
 }
 
 const Mask = "[Filtered]"
