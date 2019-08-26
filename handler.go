@@ -26,6 +26,6 @@ func (f ErrorHandlerFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             }
         }
 
-        http.Error(w, err.Error(), http.StatusInternalServerError)
+        http.Error(w, err.Error(), errors.ExtractStatusCode(err))
     }
 }

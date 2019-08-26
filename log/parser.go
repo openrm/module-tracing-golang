@@ -50,7 +50,7 @@ func parseError(err error) map[string]interface{} {
         "message": err.Error(),
     }
 
-    st := errors.WithStackTrace(err).StackTrace()
+    st := errors.ExtractStackTrace(err)
 
     if len(st) > 0 {
         errMap["stack"] = sprintStack(st)

@@ -50,7 +50,15 @@ func extractStackTrace(err error) errors.StackTrace {
         return stack
     }
 
+    if err, ok := err.(causer); ok {
+        return extractStackTrace(err.Cause())
+    }
+
     return errors.StackTrace{}
+}
+
+func ExtractStackTrace(err error) errors.StackTrace {
+    return extractStackTrace(err)
 }
 
 type flattened struct {
@@ -103,7 +111,7 @@ func filterFrame(st errors.StackTrace) errors.StackTrace {
     return stack
 }
 
-func WithStackTrace(err error) flattened {
+func WithStackTrace(err error) error {
     if _, ok := err.(stackTracer); ok {
         return flattened{ err, extractStackTrace(err) }
     }
