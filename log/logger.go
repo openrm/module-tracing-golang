@@ -33,9 +33,11 @@ func (l *contextLogger) WithError(err error) *log.Entry {
 }
 
 func (l *contextLogger) Report(err error) {
-    id := l.hub.CaptureException(err)
-    if id != nil {
-        l.WithError(err).Errorf("tracing: error reported: %s", *id)
+    if l.hub != nil {
+        id := l.hub.CaptureException(err)
+        if id != nil {
+            l.WithError(err).Errorf("tracing: error reported: %s", *id)
+        }
     }
 }
 
