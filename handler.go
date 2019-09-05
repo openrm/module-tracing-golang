@@ -2,6 +2,7 @@ package tracing
 
 import (
     "net/http"
+    "encoding/json"
     "github.com/getsentry/sentry-go"
     "github.com/openrm/module-tracing-golang/errors"
     "github.com/openrm/module-tracing-golang/log"
@@ -26,6 +27,21 @@ func (f ErrorHandlerFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             }
         }
 
-        http.Error(w, err.Error(), errors.ExtractStatusCode(err))
+        errBody := map[string]interface{}{
+            "message": err.Error(),
+        }
+
+        if err := errors.ExtractResponseError(err); err != nil {
+            errBody["cause"] = map[string]interface{}{
+                "status": err.StatusCode(),
+                "error": err.Body(),
+            }
+        }
+
+        w.Header().Set("Content-Type", "application/json; charset=utf-8")
+        w.Header().Set("X-Content-Type-Options", "nosniff")
+        w.WriteHeader(errors.ExtractStatusCode(err))
+
+        json.NewEncoder(w).Encode(errBody)
     }
 }

@@ -9,7 +9,7 @@ type CodeError interface {
     StatusCode() int
 }
 
-func New(message string, code int) error {
+func NewWithStatusCode(message string, code int) error {
     return &withStatusCode{
         errors.New(message),
         code,

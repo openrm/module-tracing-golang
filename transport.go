@@ -1,11 +1,11 @@
 package tracing
 
 import (
-    "io/ioutil"
     "context"
     "net/http"
     "github.com/pkg/errors"
     "github.com/openrm/module-tracing-golang/opentracing"
+    orerrors "github.com/openrm/module-tracing-golang/errors"
 )
 
 type tracingTransport struct {
@@ -25,11 +25,10 @@ func (tp *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error)
     }
 
     if resp.StatusCode >= http.StatusBadRequest {
-        if body, err := ioutil.ReadAll(resp.Body); err == nil {
-            return nil, errors.Errorf("transport: %d - \"%s\"", resp.StatusCode, body)
-        } else {
-            return nil, errors.New("transport: error response")
-        }
+        return nil, orerrors.WithResponse(
+            errors.Errorf("request failed with status %d", resp.StatusCode),
+            resp,
+        )
     }
 
     return resp, err
