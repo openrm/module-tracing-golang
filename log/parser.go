@@ -52,9 +52,11 @@ func parseError(err error) map[string]interface{} {
 
     st := errors.ExtractStackTrace(err)
 
-    if len(st) > 0 {
-        errMap["stack"] = sprintStack(st)
+    if len(st) == 0 {
+        st = errors.NewStackTrace()
     }
+
+    errMap["stack"] = sprintStack(st)
 
     return errMap
 }
