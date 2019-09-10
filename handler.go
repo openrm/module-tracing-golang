@@ -31,8 +31,11 @@ func (f ErrorHandlerFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             "message": err.Error(),
         }
 
-        if err := errors.ExtractResponseError(err); err != nil {
-            errBody = err.Body()
+        if rerr := errors.ExtractResponseError(err); err != nil {
+            if rerr.StatusCode() < http.StatusInternalServerError {
+                err = errors.WithStatusCode(err, rerr.StatusCode())
+            }
+            errBody = rerr.Body()
         }
 
         w.Header().Set("Content-Type", "application/json; charset=utf-8")
