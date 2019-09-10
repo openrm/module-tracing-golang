@@ -27,15 +27,12 @@ func (f ErrorHandlerFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             }
         }
 
-        errBody := map[string]interface{}{
+        var errBody interface{} = map[string]interface{}{
             "message": err.Error(),
         }
 
         if err := errors.ExtractResponseError(err); err != nil {
-            errBody["cause"] = map[string]interface{}{
-                "status": err.StatusCode(),
-                "error": err.Body(),
-            }
+            errBody = err.Body()
         }
 
         w.Header().Set("Content-Type", "application/json; charset=utf-8")

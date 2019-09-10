@@ -31,7 +31,7 @@ func (tp *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error)
         )
     }
 
-    return resp, err
+    return resp, nil
 }
 
 func NewTransport(ctx context.Context) http.RoundTripper {
