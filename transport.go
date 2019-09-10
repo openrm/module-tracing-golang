@@ -4,21 +4,17 @@ import (
     "context"
     "net/http"
     "github.com/pkg/errors"
-    "github.com/openrm/module-tracing-golang/opentracing"
+    "go.opencensus.io/plugin/ochttp"
+    "github.com/openrm/module-tracing-golang/propagation"
     orerrors "github.com/openrm/module-tracing-golang/errors"
 )
 
-type tracingTransport struct {
-    *http.Transport
-    span *opentracing.Span
+type statusErrorTransport struct {
+    http.RoundTripper
 }
 
-func (tp *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-    if tp.span != nil {
-        req.Header.Set(traceHeader, tp.span.Serialize())
-    }
-
-    resp, err := tp.Transport.RoundTrip(req)
+func (tp *statusErrorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+    resp, err := tp.RoundTripper.RoundTrip(req)
 
     if err != nil {
         return nil, err
@@ -35,14 +31,12 @@ func (tp *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 }
 
 func NewTransport(ctx context.Context) http.RoundTripper {
-    defaultTransport := http.DefaultTransport.(*http.Transport)
-    tp := tracingTransport{ Transport: defaultTransport }
-
-    if sp, ok := ctx.Value(SpanContextKey).(*opentracing.Span); ok {
-        tp.span = sp
+    return &ochttp.Transport{
+        Base: &statusErrorTransport{ http.DefaultTransport },
+        Propagation: &propagation.HTTPFormat{
+            Header: traceHeader,
+        },
     }
-
-    return &tp
 }
 
 func NewClient(ctx context.Context) *http.Client {
