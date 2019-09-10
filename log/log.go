@@ -5,7 +5,7 @@ import (
     "context"
     "net/http"
     log "github.com/sirupsen/logrus"
-    "github.com/openrm/module-tracing-golang/opentracing"
+    "go.opencensus.io/trace"
 )
 
 type contextKey struct {}
@@ -24,7 +24,19 @@ const (
     errorKey = "err"
 )
 
-func Handler(extractSpan func(context.Context) *opentracing.Span) func(http.Handler) http.Handler {
+func toMap(span *trace.Span) map[string]interface{} {
+    if span == nil {
+        return nil
+    }
+    sc := span.SpanContext()
+    return map[string]interface{}{
+        "traceId": sc.TraceID.String(),
+        "spanId": sc.SpanID.String(),
+        "sampled": sc.IsSampled(),
+    }
+}
+
+func Handler() func(http.Handler) http.Handler {
     return func(handler http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             for _, re := range excludePatterns {
@@ -38,13 +50,8 @@ func Handler(extractSpan func(context.Context) *opentracing.Span) func(http.Hand
 
             var entry *log.Entry = globalLogger.WithFields(nil)
 
-            if sp := extractSpan(r.Context()); sp != nil {
-                span := *sp
-                entry = entry.WithFields(log.Fields{
-                    "span": span.JSON(true),
-                    "traceId": span.TraceId,
-                    "spanId": span.SpanId,
-                })
+            if span := trace.FromContext(r.Context()); span != nil {
+                entry = entry.WithField("span", toMap(span))
             }
 
             ctx := r.Context()

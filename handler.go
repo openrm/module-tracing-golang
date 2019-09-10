@@ -3,12 +3,19 @@ package tracing
 import (
     "net/http"
     "encoding/json"
+    "go.opencensus.io/trace"
     "github.com/getsentry/sentry-go"
     "github.com/openrm/module-tracing-golang/errors"
     "github.com/openrm/module-tracing-golang/log"
+    "github.com/openrm/module-tracing-golang/propagation"
 )
 
 type ErrorHandlerFunc func(http.ResponseWriter, *http.Request) error
+
+const (
+    sentrySpanKey = "span"
+    sentryParentSpanContextKey = "parent_span_context"
+)
 
 // implements http.Handler
 func (f ErrorHandlerFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -16,6 +23,14 @@ func (f ErrorHandlerFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         var eventId *sentry.EventID
 
         if hub := sentry.GetHubFromContext(r.Context()); hub != nil {
+            scope := hub.Scope()
+            scope.SetExtra(sentrySpanKey, trace.FromContext(r.Context()))
+
+            format := propagation.HTTPFormat{ Header: traceHeader }
+            if sc, ok := format.SpanContextFromRequest(r); ok {
+                scope.SetExtra(sentryParentSpanContextKey, sc)
+            }
+
             eventId = hub.CaptureException(error(errors.WithStackTrace(err)))
         }
 

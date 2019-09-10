@@ -1,9 +1,8 @@
 package tracing
 
 import (
-    "strings"
     "github.com/getsentry/sentry-go"
-    "github.com/openrm/module-tracing-golang/opentracing"
+    "go.opencensus.io/trace"
 )
 
 const (
@@ -28,28 +27,27 @@ func (ti *tracingIntegration) processor(event *sentry.Event, hint *sentry.EventH
         event.Contexts = make(map[string]interface{})
     }
 
-    if sp := ti.extractSpan(event.Request); sp != nil {
-        span := *sp
-        event.Contexts[integrationContextNamespace] = span.JSON(false)
+    if sp, ok := event.Extra[sentrySpanKey]; ok {
+        if span, ok := sp.(*trace.Span); ok {
+            var parent map[string]interface{}
+
+            if psc, ok := event.Extra[sentryParentSpanContextKey]; ok {
+                if psc, ok := psc.(trace.SpanContext); ok {
+                    parent = map[string]interface{}{
+                        "trace_id": psc.TraceID.String(),
+                        "span_id": psc.SpanID.String(),
+                    }
+                }
+            }
+
+            sc := span.SpanContext()
+            event.Contexts[integrationContextNamespace] = map[string]interface{}{
+                "parent": parent,
+                "trace_id": sc.TraceID.String(),
+                "span_id": sc.SpanID.String(),
+            }
+        }
     }
 
     return event
-}
-
-func (ti *tracingIntegration) extractSpan(r sentry.Request) *opentracing.Span {
-    var traceParent string
-
-    for k, v := range r.Headers {
-        if strings.ToLower(k) == strings.ToLower(traceHeader) {
-            traceParent = v
-        }
-    }
-
-    if traceParent != "" {
-        if sp := opentracing.NewFromTraceParent(traceParent); sp != nil {
-            return sp
-        }
-    }
-
-    return nil
 }
