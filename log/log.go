@@ -6,6 +6,7 @@ import (
     "net/http"
     log "github.com/sirupsen/logrus"
     "go.opencensus.io/trace"
+    "github.com/openrm/module-tracing-golang/propagation"
 )
 
 type contextKey struct {}
@@ -24,11 +25,11 @@ const (
     errorKey = "err"
 )
 
-func toMap(span *trace.Span) map[string]interface{} {
-    if span == nil {
-        return nil
-    }
-    sc := span.SpanContext()
+type Options struct {
+    TraceHeader string
+}
+
+func toMap(sc trace.SpanContext) map[string]interface{} {
     return map[string]interface{}{
         "traceId": sc.TraceID.String(),
         "spanId": sc.SpanID.String(),
@@ -36,7 +37,9 @@ func toMap(span *trace.Span) map[string]interface{} {
     }
 }
 
-func Handler() func(http.Handler) http.Handler {
+func Handler(options Options) func(http.Handler) http.Handler {
+    format := propagation.HTTPFormat{ Header: options.TraceHeader }
+
     return func(handler http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             for _, re := range excludePatterns {
@@ -50,8 +53,16 @@ func Handler() func(http.Handler) http.Handler {
 
             var entry *log.Entry = globalLogger.WithFields(nil)
 
-            if span := trace.FromContext(r.Context()); span != nil {
-                entry = entry.WithField("span", toMap(span))
+            if sc, ok := format.SpanContextFromRequest(r); ok {
+                spanData := map[string]interface{}{
+                    "parent": toMap(sc),
+                }
+                if span := trace.FromContext(r.Context()); span != nil {
+                    for k, v := range toMap(span.SpanContext()) {
+                        spanData[k] = v
+                    }
+                }
+                entry = entry.WithField("span", spanData)
             }
 
             ctx := r.Context()

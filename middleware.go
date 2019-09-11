@@ -32,7 +32,7 @@ func SetSentryHandlerOptions(opts sentryhttp.Options) {
 func Middleware(handler http.Handler) http.Handler {
     sentryHandler := sentryhttp.New(sentryHandlerOptions)
     handler = sentryHandler.Handle(handler)
-    handler = log.Handler()(handler)
+    handler = log.Handler(log.Options{ TraceHeader: traceHeader })(handler)
 
     return &ochttp.Handler{
         Propagation: &propagation.HTTPFormat{
