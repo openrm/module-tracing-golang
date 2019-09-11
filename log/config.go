@@ -22,6 +22,10 @@ var (
     }
 )
 
+func GetExcludePatterns() []*regexp.Regexp {
+    return excludePatterns
+}
+
 func SetExcludePatterns(exprs ...string) {
     for _, expr := range exprs {
         re, err := regexp.Compile(expr)

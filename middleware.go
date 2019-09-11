@@ -7,6 +7,7 @@ import (
     "github.com/openrm/module-tracing-golang/log"
     "github.com/openrm/module-tracing-golang/propagation"
     "go.opencensus.io/plugin/ochttp"
+    "go.opencensus.io/trace"
 )
 
 type ContextKey struct {
@@ -38,5 +39,13 @@ func Middleware(handler http.Handler) http.Handler {
             Header: traceHeader,
         },
         Handler: handler,
+        GetStartOptions: func(r *http.Request) trace.StartOptions {
+            for _, re := range log.GetExcludePatterns() {
+                if re.MatchString(r.URL.Path) {
+                    return trace.StartOptions{ Sampler: trace.NeverSample() }
+                }
+            }
+            return trace.StartOptions{}
+        },
     }
 }
