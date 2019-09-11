@@ -46,7 +46,7 @@ func (f ErrorHandlerFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             "message": err.Error(),
         }
 
-        if rerr := errors.ExtractResponseError(err); err != nil {
+        if rerr := errors.ExtractResponseError(err); rerr != nil {
             if rerr.StatusCode() < http.StatusInternalServerError {
                 err = errors.WithStatusCode(err, rerr.StatusCode())
             }

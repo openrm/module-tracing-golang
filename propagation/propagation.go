@@ -5,7 +5,6 @@ import (
     "regexp"
     "strings"
     "net/http"
-    "encoding/binary"
     "encoding/hex"
     "go.opencensus.io/trace"
 )
@@ -72,7 +71,7 @@ func (f *HTTPFormat) SpanContextFromRequest(r *http.Request) (trace.SpanContext,
 
 func serialize(sc trace.SpanContext) string {
     tid := hex.EncodeToString(sc.TraceID[:])
-    sid := binary.BigEndian.Uint64(sc.SpanID[:])
+    sid := hex.EncodeToString(sc.SpanID[:])
     return fmt.Sprintf("%s-%s-%d", tid, sid, int64(sc.TraceOptions))
 }
 
