@@ -38,6 +38,7 @@ func (ti *tracingIntegration) processor(event *sentry.Event, hint *sentry.EventH
                         "span_id": psc.SpanID.String(),
                     }
                 }
+                delete(event.Extra, sentryParentSpanContextKey)
             }
 
             sc := span.SpanContext()
@@ -47,6 +48,7 @@ func (ti *tracingIntegration) processor(event *sentry.Event, hint *sentry.EventH
                 "span_id": sc.SpanID.String(),
             }
         }
+        delete(event.Extra, sentrySpanKey)
     }
 
     return event
