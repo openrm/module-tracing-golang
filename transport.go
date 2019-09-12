@@ -1,7 +1,6 @@
 package tracing
 
 import (
-    "context"
     "net/http"
     "github.com/pkg/errors"
     "go.opencensus.io/plugin/ochttp"
@@ -30,7 +29,7 @@ func (tp *statusErrorTransport) RoundTrip(req *http.Request) (*http.Response, er
     return resp, nil
 }
 
-func NewTransport(ctx context.Context) http.RoundTripper {
+func NewTransport() http.RoundTripper {
     return &ochttp.Transport{
         Base: &statusErrorTransport{ http.DefaultTransport },
         Propagation: &propagation.HTTPFormat{
@@ -39,6 +38,6 @@ func NewTransport(ctx context.Context) http.RoundTripper {
     }
 }
 
-func NewClient(ctx context.Context) *http.Client {
-    return &http.Client{ Transport: NewTransport(ctx) }
+func NewClient() *http.Client {
+    return &http.Client{ Transport: NewTransport() }
 }
