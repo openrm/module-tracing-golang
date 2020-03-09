@@ -48,17 +48,20 @@ func MustGetLogger(ctx context.Context) Logger {
         panic("tracing: could not get logger from context")
     }
 
-    logger.hub = sentry.GetHubFromContext(ctx)
-
-    return logger
+    return &contextLogger{
+        Entry: logger.Entry,
+        hub: sentry.GetHubFromContext(ctx),
+    }
 }
 
 func GetLogger(ctx context.Context) Logger {
     logger, ok := ctx.Value(LoggerContextKey).(*contextLogger)
 
     if ok {
-        logger.hub = sentry.GetHubFromContext(ctx)
-        return logger
+        return &contextLogger{
+            Entry: logger.Entry,
+            hub: sentry.GetHubFromContext(ctx),
+        }
     }
 
     return nil
