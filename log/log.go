@@ -2,9 +2,11 @@ package log
 
 import (
     "time"
+    "bytes"
     "context"
     "net/http"
     log "github.com/sirupsen/logrus"
+    apachelog "github.com/lestrrat-go/apache-logformat"
     "go.opencensus.io/trace"
     "github.com/openrm/module-tracing-golang/propagation"
 )
@@ -36,6 +38,43 @@ func toMap(sc trace.SpanContext) map[string]interface{} {
         "sampled": sc.IsSampled(),
     }
 }
+
+
+type logCtx struct {
+    time time.Time
+    duration time.Duration
+    request *http.Request
+    response *ResponseLogger
+}
+
+func (l logCtx) ElapsedTime() time.Duration {
+    return l.duration
+}
+
+func (l logCtx) Request() *http.Request {
+    return l.request
+}
+
+func (l logCtx) RequestTime() time.Time {
+    return l.time
+}
+
+func (l logCtx) ResponseContentLength() int64 {
+    return int64(l.response.size)
+}
+
+func (l logCtx) ResponseHeader() http.Header {
+    return l.response.ResponseWriter.Header()
+}
+
+func (l logCtx) ResponseStatus() int {
+    return l.response.status
+}
+
+func (l logCtx) ResponseTime() time.Time {
+    return l.response.time
+}
+
 
 func Handler(options Options) func(http.Handler) http.Handler {
     format := propagation.HTTPFormat{ Header: options.TraceHeader }
@@ -110,15 +149,25 @@ func Handler(options Options) func(http.Handler) http.Handler {
                 entry = entry.WithField("files", parseMultipartForm(r.MultipartForm))
             }
 
+            duration := time.Since(start)
+
             entry = entry.WithFields(log.Fields{
-                "responseTime": float64(time.Since(start).Nanoseconds()) / 1e6, // ms
+                "responseTime": float64(duration.Nanoseconds()) / 1e6, // ms
                 "status": l.status,
                 "responseHeaders": filterHeader(l.Header()),
                 "responseContentLength": l.size,
             })
 
-            entry.Info(messageRequestHandled)
+            buf := new(bytes.Buffer)
+            logCtx := logCtx{
+                time: start,
+                duration: duration,
+                request: r,
+                response: l,
+            }
+            apachelog.CombinedLog.WriteLog(buf, logCtx)
+
+            entry.Info(buf.String())
         })
     }
 }
-
