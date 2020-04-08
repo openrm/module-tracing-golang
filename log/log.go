@@ -5,11 +5,16 @@ import (
     "bytes"
     "context"
     "net/http"
+    "encoding/json"
     log "github.com/sirupsen/logrus"
     apachelog "github.com/lestrrat-go/apache-logformat"
+    sdlog "cloud.google.com/go/logging"
     "go.opencensus.io/trace"
     "github.com/openrm/module-tracing-golang/propagation"
 )
+
+func init() {
+}
 
 type contextKey struct {}
 type extraKey struct {
@@ -76,8 +81,46 @@ func (l logCtx) ResponseTime() time.Time {
 }
 
 
+func sdHook(
+    logger *sdlog.Logger,
+    logEntry *log.Entry,
+    duration time.Duration,
+    r *http.Request,
+    l *ResponseLogger,
+    span *trace.Span,
+) {
+    if logger == nil {
+        return
+    }
+    payload, _ := json.Marshal(logEntry.Data)
+    entry := sdlog.Entry{
+        Payload: json.RawMessage(payload),
+        HTTPRequest: &sdlog.HTTPRequest{
+            Request: r,
+            RequestSize: r.ContentLength,
+            Status: l.status,
+            ResponseSize: int64(l.size),
+            Latency: duration,
+        },
+    }
+    if span != nil {
+        sc := span.SpanContext()
+        entry.Trace = sc.TraceID.String()
+        entry.SpanID = sc.SpanID.String()
+        entry.TraceSampled = sc.IsSampled()
+    }
+    logger.Log(entry)
+}
+
 func Handler(options Options) func(http.Handler) http.Handler {
     format := propagation.HTTPFormat{ Header: options.TraceHeader }
+    client, _ := sdlog.NewClient(context.Background(), "")
+
+    var sdlogger *sdlog.Logger
+
+    if client != nil {
+        sdlogger = client.Logger("tracing_log")
+    }
 
     return func(handler http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -91,12 +134,13 @@ func Handler(options Options) func(http.Handler) http.Handler {
             start := time.Now()
 
             var entry *log.Entry = globalLogger.WithFields(nil)
+            var span *trace.Span
 
             if sc, ok := format.SpanContextFromRequest(r); ok {
                 spanData := map[string]interface{}{
                     "parent": toMap(sc),
                 }
-                if span := trace.FromContext(r.Context()); span != nil {
+                if span = trace.FromContext(r.Context()); span != nil {
                     for k, v := range toMap(span.SpanContext()) {
                         spanData[k] = v
                     }
@@ -166,6 +210,8 @@ func Handler(options Options) func(http.Handler) http.Handler {
                 response: l,
             }
             apachelog.CombinedLog.WriteLog(buf, logCtx)
+
+            sdHook(sdlogger, entry, duration, r, l, span)
 
             entry.Info(buf.String())
         })

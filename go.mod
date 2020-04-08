@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	cloud.google.com/go v0.43.0
+	cloud.google.com/go/logging v1.0.0
 	contrib.go.opencensus.io/exporter/stackdriver v0.12.7
 	github.com/getsentry/sentry-go v0.2.1
 	github.com/google/uuid v1.1.1
