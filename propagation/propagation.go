@@ -3,13 +3,14 @@ package propagation
 import (
     "fmt"
     "regexp"
+    "strconv"
     "strings"
     "net/http"
     "encoding/hex"
     "go.opencensus.io/trace"
 )
 
-var tracePattern = regexp.MustCompile(`^[ \t]*([0-9a-f]{32})?-?([0-9a-f]{16})?-?([01])?[ \t]*$`)
+var tracePattern = regexp.MustCompile(`^[ \t]*([0-9a-f]{32})?-?([0-9a-f]+)?-?([01])?[ \t]*$`)
 
 type HTTPFormat struct {
     Header string
@@ -25,9 +26,19 @@ func parseHeader(v string) (tid trace.TraceID, sid trace.SpanID, opts trace.Trac
         }
         copy(tid[:], buf)
 
-        if buf, err = hex.DecodeString(matches[2]); err != nil {
+        buf, err = hex.DecodeString(matches[2])
+
+        if err != nil {
+            if i, err := strconv.Atoi(matches[2]); err == nil {
+                buf, err = hex.DecodeString(fmt.Sprintf("%x", i))
+                buf = append(make([]byte, len(sid) - len(buf)), buf...)
+            }
+        }
+
+        if len(buf) == 0 {
             return
         }
+
         copy(sid[:], buf)
 
         if matches[3] == "1" {
