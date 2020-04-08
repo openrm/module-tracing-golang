@@ -11,6 +11,7 @@ import (
     sdlog "cloud.google.com/go/logging"
     "go.opencensus.io/trace"
     "github.com/openrm/module-tracing-golang/propagation"
+    "cloud.google.com/go/compute/metadata"
 )
 
 func init() {
@@ -114,7 +115,9 @@ func sdHook(
 
 func Handler(options Options) func(http.Handler) http.Handler {
     format := propagation.HTTPFormat{ Header: options.TraceHeader }
-    client, _ := sdlog.NewClient(context.Background(), "")
+
+    projectId, _ := metadata.ProjectID()
+    client, _ := sdlog.NewClient(context.Background(), projectId)
 
     var sdlogger *sdlog.Logger
 
