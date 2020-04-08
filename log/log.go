@@ -1,6 +1,7 @@
 package log
 
 import (
+    "fmt"
     "time"
     "bytes"
     "context"
@@ -86,9 +87,10 @@ func sdHook(
     logger *sdlog.Logger,
     logEntry *log.Entry,
     duration time.Duration,
-    r *http.Request,
-    l *ResponseLogger,
+    req *http.Request,
+    resp *ResponseLogger,
     span *trace.Span,
+    projectId string,
 ) {
     if logger == nil {
         return
@@ -97,16 +99,16 @@ func sdHook(
     entry := sdlog.Entry{
         Payload: json.RawMessage(payload),
         HTTPRequest: &sdlog.HTTPRequest{
-            Request: r,
-            RequestSize: r.ContentLength,
-            Status: l.status,
-            ResponseSize: int64(l.size),
+            Request: req,
+            RequestSize: req.ContentLength,
+            Status: resp.status,
+            ResponseSize: int64(resp.size),
             Latency: duration,
         },
     }
     if span != nil {
         sc := span.SpanContext()
-        entry.Trace = sc.TraceID.String()
+        entry.Trace = fmt.Sprintf("projects/%s/traces/%s", projectId, sc.TraceID.String())
         entry.SpanID = sc.SpanID.String()
         entry.TraceSampled = sc.IsSampled()
     }
@@ -214,7 +216,7 @@ func Handler(options Options) func(http.Handler) http.Handler {
             }
             apachelog.CombinedLog.WriteLog(buf, logCtx)
 
-            sdHook(sdlogger, entry, duration, r, l, span)
+            sdHook(sdlogger, entry, duration, r, l, span, projectId)
 
             entry.Info(buf.String())
         })
