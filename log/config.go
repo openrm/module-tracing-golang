@@ -43,3 +43,13 @@ func SetFilterHeaderPatterns(exprs ...string) {
         }
     }
 }
+
+var (
+    serviceName string
+    serviceVersion string
+)
+
+func SetServiceContext(name, version string) {
+    serviceName = name
+    serviceVersion = version
+}

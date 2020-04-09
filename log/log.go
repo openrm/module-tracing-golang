@@ -1,6 +1,7 @@
 package log
 
 import (
+    "os"
     "fmt"
     "time"
     "bytes"
@@ -124,7 +125,11 @@ func Handler(options Options) func(http.Handler) http.Handler {
     var sdlogger *sdlog.Logger
 
     if client != nil {
-        sdlogger = client.Logger("tracing_log")
+        sdlogger = client.Logger("tracing_log", sdlog.CommonLabels(map[string]string{
+            "pod_name": os.Getenv("HOSTNAME"),
+            "service_name": serviceName,
+            "service_version": serviceVersion,
+        }))
     }
 
     return func(handler http.Handler) http.Handler {
