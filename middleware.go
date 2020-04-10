@@ -29,23 +29,26 @@ func SetSentryHandlerOptions(opts sentryhttp.Options) {
 
 }
 
-func Middleware(handler http.Handler) http.Handler {
+func Middleware() func(http.Handler) http.Handler {
     sentryHandler := sentryhttp.New(sentryHandlerOptions)
-    handler = sentryHandler.Handle(handler)
-    handler = log.Handler(log.Options{ TraceHeader: traceHeader })(handler)
+    loggingHandler := log.Handler(log.Options{ TraceHeader: traceHeader })
 
-    return &ochttp.Handler{
-        Propagation: &propagation.HTTPFormat{
-            Header: traceHeader,
-        },
-        Handler: handler,
-        GetStartOptions: func(r *http.Request) trace.StartOptions {
-            for _, re := range log.GetExcludePatterns() {
-                if re.MatchString(r.URL.Path) {
-                    return trace.StartOptions{ Sampler: trace.NeverSample() }
+    return func(handler http.Handler) http.Handler {
+        handler = sentryHandler.Handle(handler)
+        handler = loggingHandler(handler)
+        return &ochttp.Handler{
+            Propagation: &propagation.HTTPFormat{
+                Header: traceHeader,
+            },
+            Handler: handler,
+            GetStartOptions: func(r *http.Request) trace.StartOptions {
+                for _, re := range log.GetExcludePatterns() {
+                    if re.MatchString(r.URL.Path) {
+                        return trace.StartOptions{ Sampler: trace.NeverSample() }
+                    }
                 }
-            }
-            return trace.StartOptions{}
-        },
+                return trace.StartOptions{}
+            },
+        }
     }
 }
