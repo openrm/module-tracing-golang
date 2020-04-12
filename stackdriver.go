@@ -7,13 +7,19 @@ import (
     "go.opencensus.io/trace"
 )
 
-func InitTracer() {
+func InitTracer() func() {
     exporter, err := stackdriver.NewExporter(stackdriver.Options{
         MonitoredResource: monitoredresource.Autodetect(),
     })
     if err != nil {
         log.Fatal(err)
     }
+    exporter.StartMetricsExporter()
     trace.RegisterExporter(exporter)
     trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
+    return func() {
+        exporter.Flush()
+        exporter.StopMetricsExporter()
+        trace.UnregisterExporter(exporter)
+    }
 }
