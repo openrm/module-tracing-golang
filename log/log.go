@@ -123,11 +123,22 @@ func Handler(options Options) func(http.Handler) http.Handler {
     var sdlogger *sdlog.Logger
 
     if client != nil {
-        sdlogger = client.Logger("tracing_log", sdlog.CommonLabels(map[string]string{
-            "pod_name": os.Getenv("HOSTNAME"),
-            "service_name": serviceName,
-            "service_version": serviceVersion,
-        }))
+        opts := []sdlog.LoggerOption{
+            sdlog.CommonLabels(map[string]string{
+                "pod_name": os.Getenv("HOSTNAME"),
+                "service_name": serviceName,
+                "service_version": serviceVersion,
+            }),
+            sdlog.ContextFunc(func() (context.Context, func()) {
+                ctx, span := trace.StartSpan(
+                    context.Background(),
+                    "this span will not be exported",
+                    trace.WithSampler(trace.NeverSample()),
+                )
+                return ctx, span.End
+            }),
+        }
+        sdlogger = client.Logger("tracing_log", opts...)
     }
 
     return func(handler http.Handler) http.Handler {
