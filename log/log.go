@@ -117,7 +117,6 @@ func Handler(options Options) func(http.Handler) http.Handler {
     format := propagation.HTTPFormat{ Header: options.TraceHeader }
 
     projectId, _ := metadata.ProjectID()
-    projectId = "genuine-rope-233203"
     client, _ := sdlog.NewClient(context.Background(), projectId)
 
     var sdlogger *sdlog.Logger
